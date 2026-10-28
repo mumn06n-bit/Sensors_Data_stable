@@ -1,12 +1,21 @@
 import Papa from "papaparse";
 import "./index.css";
 import { renderChart } from "./graph.js";
+import { thinRows, type Interval } from "./thinRows.js";
+import QRCode from "qrcode";//QRコード生成用のライブラリ
+
+// const API_URLS = {
+//     water: "/api/water",
+//     salinity: "/api/salinity",
+//     do1: "/api/do1",
+//     do2: "/api/do2", //追加
+//     do3: "/api/do3", 
+// };
 
 const API_URLS = {
-    water: "/api/water",
-    salinity: "/api/salinity",
-    do1: "/api/do1",
-    do3: "/api/do3", //追加
+    salinity: "/bkup_data/salinity.csv",
+    do1: "/bkup_data/do1.csv",
+    do3: "/bkup_data/do3.csv", 
 };
 
 //グラフの表示/非表示
@@ -47,73 +56,31 @@ function parseData(data: string) {
     return parsed.data;
 }
 
-const renderTable = (data: string, sensorType: string): string => {
+// 表示用に行を準備する（"3h" のときだけ間引く。"all" は全件のまま）
+function prepareRows(data: string, interval: Interval): any[] {
+    const rows = parseData(data);
+    return interval === "3h" ? thinRows(rows, "3h") : rows;
+}
 
-    if (sensorType === "water") {
-        return renderWaterTable(data);
-    }
+const renderTable = (data: string, sensorType: string, interval: Interval): string => {
 
     if (sensorType === "salinity") {
-        return renderSalinityTable(data);
+        return renderSalinityTable(data, interval);
     }
 
     if (sensorType === "do1") {
-        return renderDO1Table(data);
+        return renderDO1Table(data, interval);
     }
     //追加
     if (sensorType === "do3") {
-        return renderDO3Table(data);
+        return renderDO3Table(data, interval);
     }
 
     return "";
 };
 
-function renderWaterTable(data: string): string {
-
-    const rows = parseData(data);
-
-    let tableHtml = `
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>センサID</th>
-                    <th>日時</th>
-                    <th>バッテリ電圧</th>
-                    <th>外気温</th>
-                    <th>水温</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-
-    rows.reverse().forEach((row: any) => {
-
-        const utcDate = new Date(row[1]);
-        const jst = utcDate.toLocaleString("ja-JP", {
-            timeZone: "Asia/Tokyo"
-        });
-
-        tableHtml += `
-            <tr>
-                <td>${row[0]}</td>
-                <td>${jst}</td>
-                <td>${row[2]} V</td>
-                <td>${row[3]} ℃</td>
-                <td>${row[4]} ℃</td>
-            </tr>
-        `;
-    });
-
-    tableHtml += `
-            </tbody>
-        </table>
-    `;
-
-    return tableHtml;
-}
-
-function renderSalinityTable(data: string): string {
-    const rows = parseData(data);
+function renderSalinityTable(data: string, interval: Interval): string {
+    const rows = prepareRows(data, interval);
 
     let tableHtml = `
         <table border="1">
@@ -159,8 +126,8 @@ function renderSalinityTable(data: string): string {
     return tableHtml;
 }
 
-function renderDO1Table(data: string): string {
-    const rows = parseData(data);
+function renderDO1Table(data: string, interval: Interval): string {
+    const rows = prepareRows(data, interval);
 
     let tableHtml = `
         <table border="1">
@@ -206,8 +173,8 @@ function renderDO1Table(data: string): string {
     return tableHtml;
 }
 //追加
-function renderDO3Table(data: string): string {
-    const rows = parseData(data);
+function renderDO3Table(data: string, interval: Interval): string {
+    const rows = prepareRows(data, interval);
 
     let tableHtml = `
         <table border="1">
@@ -256,32 +223,69 @@ function renderDO3Table(data: string): string {
 if (app) {
     //button追加
     app.innerHTML = `
-    <h2>センサデータ</h2>
+    <div class="title-row">
+        <h2>センサデータ</h2>
+        <button id="qr-button" class="qr-link" type="button">QRコードを表示</button>
+    </div>
+
+    <div id="qr-overlay" class="qr-overlay" style="display: none;">
+        <canvas id="qr-canvas"></canvas>
+        <p>画面をタップすると閉じます</p>
+    </div>
 
     <div id="tab-container">
-        <button id="water-tab" class="tab active">水温</button>
-        <button id="salinity-tab" class="tab">塩分</button>
+        <button id="salinity-tab" class="tab active">塩分</button>
         <button id="do1-tab" class="tab">DO1号</button>
         <button id="do3-tab" class="tab">DO3号</button>
     </div>
 
-    <button id="chart-toggle-button">
-        グラフを表示
-    </button>
-
-    <div id="chart-container" style="display: none;">
-     
+    <div class="chart-controls">
+        <button id="chart-toggle-button" class="chart-toggle-btn">グラフを表示</button>
+        <button id="chart-interval-button" class="interval-btn" aria-pressed="false" style="display: none;">
+            3時間ごと
+        </button>
     </div>
 
+    <div id="chart-container" style="display: none;">
+    </div>
+
+    <div class="interval-buttons table-interval-buttons">
+        <button id="table-interval-button" class="interval-btn" aria-pressed="false">
+            3時間ごと
+        </button>
+    </div>
+    
     <div id="table-container">
         データを読み込み中...
     </div>
 `;
 }
-const waterTab = document.getElementById("water-tab");
+
+// QRコードの表示/非表示の処理ここから--------------------------------------
+const SITE_URL = "";
+
+const qrButton = document.getElementById("qr-button");
+const qrOverlay = document.getElementById("qr-overlay");
+const qrCanvas = document.getElementById("qr-canvas") as HTMLCanvasElement | null;
+
+qrButton?.addEventListener("click", async () => {
+    if (!qrOverlay || !qrCanvas) return;
+
+    // 画面の短い辺の80%の大きさで描く
+    const size = Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.8);
+    await QRCode.toCanvas(qrCanvas, SITE_URL, { width: size, margin: 2 });
+
+    qrOverlay.style.display = "flex";
+});
+
+// どこをタップしても閉じる
+qrOverlay?.addEventListener("click", () => {
+    qrOverlay.style.display = "none";
+});
+// QRコードの表示/非表示の処理ここまで--------------------------------------
 const salinityTab = document.getElementById("salinity-tab");
 const do1Tab = document.getElementById("do1-tab");
-const do3Tab = document.getElementById("do3-tab");//追加
+const do3Tab = document.getElementById("do3-tab");
 
 //グラフ表示ボタン
 const chartToggleButton =
@@ -289,19 +293,52 @@ const chartToggleButton =
 const chartContainer =
     document.getElementById("chart-container");
 
-let currentSensorType = "water";
+let chartInterval: Interval = "all";
+const chartIntervalButton = document.getElementById("chart-interval-button");
 
-waterTab?.addEventListener("click", () => {
-    currentSensorType = "water";
-    setActiveTab(waterTab);
-    loadTable(API_URLS.water, "water");
+// グラフ用ボタンは、グラフ表示中、かつ塩分・DO1号・DO3号のときだけ表示
+function updateChartIntervalVisibility() {
+    if (!chartIntervalButton) return;
+    const hasInterval = ["salinity", "do1", "do3"].includes(currentSensorType);
+    chartIntervalButton.style.display = isChartVisible && hasInterval ? "" : "none";
+}
 
-    if (isChartVisible) {
-        loadChart(API_URLS.water, "water");
-    }
+// グラフ用ボタンの見た目を状態に合わせる
+function updateChartIntervalButton() {
+    if (!chartIntervalButton) return;
+    const isOn = chartInterval === "3h";
+    chartIntervalButton.classList.toggle("active", isOn);
+    chartIntervalButton.setAttribute("aria-pressed", String(isOn));
+}
+
+chartIntervalButton?.addEventListener("click", () => {
+    chartInterval = chartInterval === "3h" ? "all" : "3h";
+    updateChartIntervalButton();
+    loadChart(
+        API_URLS[currentSensorType as keyof typeof API_URLS],
+        currentSensorType
+    );
 });
+
+
+// 表の表示間隔切り替えボタン
+const tableIntervalButton = document.getElementById("table-interval-button");
+
+tableIntervalButton?.addEventListener("click", () => {
+    tableInterval = tableInterval === "3h" ? "all" : "3h";
+
+    const isOn = tableInterval === "3h";
+    tableIntervalButton.classList.toggle("active", isOn);
+    tableIntervalButton.setAttribute("aria-pressed", String(isOn));
+
+    showTable();
+});
+
+let currentSensorType = "salinity";
+
 salinityTab?.addEventListener("click", () => {
     currentSensorType = "salinity";
+    updateChartIntervalVisibility();
     setActiveTab(salinityTab);
     loadTable(API_URLS.salinity, "salinity");
 
@@ -312,6 +349,7 @@ salinityTab?.addEventListener("click", () => {
 
 do1Tab?.addEventListener("click", () => {
     currentSensorType = "do1";
+    updateChartIntervalVisibility();
 
     setActiveTab(do1Tab);
     loadTable(API_URLS.do1, "do1");
@@ -323,6 +361,7 @@ do1Tab?.addEventListener("click", () => {
 
 do3Tab?.addEventListener("click", () => {
     currentSensorType = "do3";
+    updateChartIntervalVisibility();
 
     setActiveTab(do3Tab);
     loadTable(API_URLS.do3, "do3");
@@ -338,18 +377,19 @@ chartToggleButton?.addEventListener("click", () => {
 
     if (isChartVisible) {
         chartContainer!.style.display = "block";
-
         chartToggleButton.textContent = "グラフを非表示";
+        updateChartIntervalVisibility();
+
         loadChart(
             API_URLS[currentSensorType as keyof typeof API_URLS],
             currentSensorType
         );
-
-        // グラフを描画
-    } else {
+    }
+    // グラフを描画
+    else {
         chartContainer!.style.display = "none";
-
         chartToggleButton.textContent = "グラフを表示";
+        updateChartIntervalVisibility();
     }
 });
 
@@ -358,35 +398,50 @@ async function loadChart(
     apiUrl: string,
     sensorType: string
 ) {
-    const data = await fetchData(apiUrl);
-
-    if (!data) return;
-
     if (!chartContainer) return;
 
-renderChart(
-    data,
-    sensorType,
-    chartContainer
-);
+    // DO2はグラフがないので、取得せずにメッセージだけ出す
+    if (sensorType === "do2") {
+        chartContainer.textContent = "DO2号のグラフは準備中です。";
+        return;
+    }
+
+    const data = await fetchData(apiUrl);
+    if (!data) return;
+
+    renderChart(data, sensorType, chartContainer, chartInterval);
+}
+
+// 表の状態
+let tableData: string | null = null;      // 取得済みのデータ
+let tableSensorType = "salinity";
+let tableInterval: Interval = "all";      // "all": 全件 / "3h": 3時間ごと
+
+// 保持しているデータから表を描画する
+function showTable() {
+    const container = app?.querySelector("#table-container");
+    if (!container || tableData === null) return;
+
+    container.innerHTML = renderTable(tableData, tableSensorType, tableInterval);
 }
 
 // API からデータを取得して表を反映
 async function loadTable(apiUrl: string, sensorType: string) {
-    const data = await fetchData(apiUrl);
-
     const container = app?.querySelector("#table-container");
-
     if (!container) return;
 
     container.textContent = "読み込み中...";
 
-    if (data !== null) {
-        container.innerHTML = renderTable(data, sensorType);
+    const data = await fetchData(apiUrl);
 
+    if (data !== null) {
+        tableData = data;
+        tableSensorType = sensorType;
+        showTable();
     } else {
-        container.textContent = "データの取得に失敗しました。";
+        tableData = null;
+        container.textContent = "データを読み込めませんでした。";
     }
 }
 
-loadTable(API_URLS.water, "water");
+loadTable(API_URLS.salinity, "salinity");
