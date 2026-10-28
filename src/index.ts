@@ -223,14 +223,13 @@ function renderDO3Table(data: string, interval: Interval): string {
 if (app) {
     //button追加
     app.innerHTML = `
-    <div class="title-row">
+        <div class="title-row">
         <h2>センサデータ</h2>
-        <button id="qr-button" class="qr-link" type="button">QRコードを表示</button>
+        <button id="qr-button" class="chart-toggle-btn" type="button">QRコードを表示</button>
     </div>
 
-    <div id="qr-overlay" class="qr-overlay" style="display: none;">
+    <div id="qr-container" class="qr-container" style="display: none;">
         <canvas id="qr-canvas"></canvas>
-        <p>画面をタップすると閉じます</p>
     </div>
 
     <div id="tab-container">
@@ -265,22 +264,26 @@ if (app) {
 const SITE_URL = "https://sensors-data-stable.vercel.app/";
 
 const qrButton = document.getElementById("qr-button");
-const qrOverlay = document.getElementById("qr-overlay");
+const qrContainer = document.getElementById("qr-container");
 const qrCanvas = document.getElementById("qr-canvas") as HTMLCanvasElement | null;
+let isQrVisible = false;
 
 qrButton?.addEventListener("click", async () => {
-    if (!qrOverlay || !qrCanvas) return;
+    if (!qrContainer || !qrCanvas) return;
 
-    // 画面の短い辺の80%の大きさで描く
-    const size = Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.8);
-    await QRCode.toCanvas(qrCanvas, SITE_URL, { width: size, margin: 2 });
+    isQrVisible = !isQrVisible;
 
-    qrOverlay.style.display = "flex";
-});
+    if (isQrVisible) {
+        // 画面幅に合わせて、最大480pxの大きさで描く
+        const size = Math.min(window.innerWidth - 32, 480);
+        await QRCode.toCanvas(qrCanvas, SITE_URL, { width: size, margin: 2 });
 
-// どこをタップしても閉じる
-qrOverlay?.addEventListener("click", () => {
-    qrOverlay.style.display = "none";
+        qrContainer.style.display = "flex";
+        qrButton.textContent = "QRコードを非表示";
+    } else {
+        qrContainer.style.display = "none";
+        qrButton.textContent = "QRコードを表示";
+    }
 });
 // QRコードの表示/非表示の処理ここまで--------------------------------------
 const salinityTab = document.getElementById("salinity-tab");

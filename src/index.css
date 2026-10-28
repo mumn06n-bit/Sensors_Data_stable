@@ -179,6 +179,13 @@ td {
 .table-interval-buttons {
     justify-content: flex-end;
 }
+
+/* QRコード */
+.qr-container {
+    display: flex;
+    justify-content: center;
+    margin: 12px 0;
+}
  /* お知らせメッセージ 
 .notice {
     margin: 8px 0 12px;
