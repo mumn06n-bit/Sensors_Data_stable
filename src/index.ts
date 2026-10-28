@@ -274,8 +274,8 @@ qrButton?.addEventListener("click", async () => {
     isQrVisible = !isQrVisible;
 
     if (isQrVisible) {
-        // 画面幅に合わせて、最大480pxの大きさで描く
-        const size = Math.min(window.innerWidth - 32, 480);
+        // 画面幅に合わせて、最大300pxの大きさで描く
+        const size = Math.min(window.innerWidth - 32, 230);
         await QRCode.toCanvas(qrCanvas, SITE_URL, { width: size, margin: 2 });
 
         qrContainer.style.display = "flex";
