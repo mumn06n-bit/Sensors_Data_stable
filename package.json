@@ -1,15 +1,15 @@
 {
-  "name": "salt_table",
+  "name": "sensors_data_stable",
   "version": "1.0.0",
   "description": "",
   "keywords": [],
-  "homepage": "https://github.com/2026-IoT/salt_table#readme",
+  "homepage": "https://github.com/2026-IoT/sensors_data_stable#readme",
   "bugs": {
-    "url": "https://github.com/2026-IoT/salt_table/issues"
+    "url": "https://github.com/2026-IoT/sensors_data_stable/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/2026-IoT/salt_table.git"
+    "url": "git+https://github.com/2026-IoT/sensors_data_stable.git"
   },
   "license": "ISC",
   "author": "",

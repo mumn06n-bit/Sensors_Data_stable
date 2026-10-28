@@ -262,7 +262,7 @@ if (app) {
 }
 
 // QRコードの表示/非表示の処理ここから--------------------------------------
-const SITE_URL = "";
+const SITE_URL = "https://sensors-data-stable.vercel.app/";
 
 const qrButton = document.getElementById("qr-button");
 const qrOverlay = document.getElementById("qr-overlay");
