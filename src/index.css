@@ -179,7 +179,7 @@ td {
 .table-interval-buttons {
     justify-content: flex-end;
 }
-/*  お知らせメッセージ  */
+ /* お知らせメッセージ 
 .notice {
     margin: 8px 0 12px;
     padding: 8px 12px;
@@ -194,4 +194,4 @@ td {
 .notice-title {
     font-weight: bold;
     margin-right: 8px;
-}
+} */

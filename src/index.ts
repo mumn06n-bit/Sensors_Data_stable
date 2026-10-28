@@ -2,13 +2,20 @@ import Papa from "papaparse";
 import "./index.css";
 import { renderChart } from "./graph.js";
 import { thinRows, type Interval } from "./thinRows.js";
+import QRCode from "qrcode";//QRコード生成用のライブラリ
+
+// const API_URLS = {
+//     water: "/api/water",
+//     salinity: "/api/salinity",
+//     do1: "/api/do1",
+//     do2: "/api/do2", //追加
+//     do3: "/api/do3", 
+// };
 
 const API_URLS = {
-    water: "/api/water",
-    salinity: "/api/salinity",
-    do1: "/api/do1",
-    do2: "/api/do2", //追加
-    do3: "/api/do3", 
+    salinity: "/bkup_data/salinity.csv",
+    do1: "/bkup_data/do1.csv",
+    do3: "/bkup_data/do3.csv", 
 };
 
 //グラフの表示/非表示
@@ -57,19 +64,12 @@ function prepareRows(data: string, interval: Interval): any[] {
 
 const renderTable = (data: string, sensorType: string, interval: Interval): string => {
 
-    if (sensorType === "water") {
-        return renderWaterTable(data, interval);
-    }
-
     if (sensorType === "salinity") {
         return renderSalinityTable(data, interval);
     }
 
     if (sensorType === "do1") {
         return renderDO1Table(data, interval);
-    }
-    if (sensorType === "do2") {
-        return renderDO2Table(data, interval);
     }
     //追加
     if (sensorType === "do3") {
@@ -78,50 +78,6 @@ const renderTable = (data: string, sensorType: string, interval: Interval): stri
 
     return "";
 };
-
-function renderWaterTable(data: string, interval: Interval): string {
-
-    const rows = prepareRows(data, interval);
-
-    let tableHtml = `
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>センサID</th>
-                    <th>日時</th>
-                    <th>バッテリ電圧</th>
-                    <th>外気温</th>
-                    <th>水温</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-
-    rows.reverse().forEach((row: any) => {
-
-        const utcDate = new Date(row[1]);
-        const jst = utcDate.toLocaleString("ja-JP", {
-            timeZone: "Asia/Tokyo"
-        });
-
-        tableHtml += `
-            <tr>
-                <td>${row[0]}</td>
-                <td>${jst}</td>
-                <td>${row[2]} V</td>
-                <td>${row[3]} ℃</td>
-                <td>${row[4]} ℃</td>
-            </tr>
-        `;
-    });
-
-    tableHtml += `
-            </tbody>
-        </table>
-    `;
-
-    return tableHtml;
-}
 
 function renderSalinityTable(data: string, interval: Interval): string {
     const rows = prepareRows(data, interval);
@@ -216,44 +172,6 @@ function renderDO1Table(data: string, interval: Interval): string {
 
     return tableHtml;
 }
-function renderDO2Table(data: string, interval: Interval): string {
-    const rows = prepareRows(data, interval);
-
-    let tableHtml = `
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>センサID</th>
-                    <th>日時</th>
-                    <th>値（調整中です！）</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-
-    rows.reverse().forEach((row: any) => {
-
-        const utcDate = new Date(row[1]);
-        const jst = utcDate.toLocaleString("ja-JP", {
-            timeZone: "Asia/Tokyo"
-        });
-
-        tableHtml += `
-            <tr>
-                <td>${row[0]}</td>
-                <td>${jst}</td>
-                <td>${row[2]}</td>
-                </tr>
-        `;
-    });
-
-    tableHtml += `
-            </tbody>
-        </table>
-    `;
-
-    return tableHtml;
-}
 //追加
 function renderDO3Table(data: string, interval: Interval): string {
     const rows = prepareRows(data, interval);
@@ -307,22 +225,17 @@ if (app) {
     app.innerHTML = `
     <div class="title-row">
         <h2>センサデータ</h2>
-        <a href="https://kitsunezaki.vercel.app/data" target="_blank" rel="noopener noreferrer">
-            狐崎みるはこちら
-        </a>
+        <button id="qr-button" class="qr-link" type="button">QRコードを表示</button>
     </div>
 
-    <div class="notice">
-        <span class="notice-title">お知らせ</span>
-        現在、システムが停止しており、過去のデータを閲覧できなくなっております。
-        ご迷惑をおかけして申し訳ございません。
+    <div id="qr-overlay" class="qr-overlay" style="display: none;">
+        <canvas id="qr-canvas"></canvas>
+        <p>画面をタップすると閉じます</p>
     </div>
 
     <div id="tab-container">
-        <button id="water-tab" class="tab">水温</button>
         <button id="salinity-tab" class="tab active">塩分</button>
         <button id="do1-tab" class="tab">DO1号</button>
-        <button id="do2-tab" class="tab">DO2号</button>
         <button id="do3-tab" class="tab">DO3号</button>
     </div>
 
@@ -347,10 +260,31 @@ if (app) {
     </div>
 `;
 }
-const waterTab = document.getElementById("water-tab");
+
+// QRコードの表示/非表示の処理ここから--------------------------------------
+const SITE_URL = "";
+
+const qrButton = document.getElementById("qr-button");
+const qrOverlay = document.getElementById("qr-overlay");
+const qrCanvas = document.getElementById("qr-canvas") as HTMLCanvasElement | null;
+
+qrButton?.addEventListener("click", async () => {
+    if (!qrOverlay || !qrCanvas) return;
+
+    // 画面の短い辺の80%の大きさで描く
+    const size = Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.8);
+    await QRCode.toCanvas(qrCanvas, SITE_URL, { width: size, margin: 2 });
+
+    qrOverlay.style.display = "flex";
+});
+
+// どこをタップしても閉じる
+qrOverlay?.addEventListener("click", () => {
+    qrOverlay.style.display = "none";
+});
+// QRコードの表示/非表示の処理ここまで--------------------------------------
 const salinityTab = document.getElementById("salinity-tab");
 const do1Tab = document.getElementById("do1-tab");
-const do2Tab = document.getElementById("do2-tab");//追加
 const do3Tab = document.getElementById("do3-tab");
 
 //グラフ表示ボタン
@@ -402,17 +336,6 @@ tableIntervalButton?.addEventListener("click", () => {
 
 let currentSensorType = "salinity";
 
-waterTab?.addEventListener("click", () => {
-    currentSensorType = "water";
-    updateChartIntervalVisibility();
-    setActiveTab(waterTab);
-    loadTable(API_URLS.water, "water");
-
-    if (isChartVisible) {
-    loadChart(API_URLS.water, "water");
-}
-});
-
 salinityTab?.addEventListener("click", () => {
     currentSensorType = "salinity";
     updateChartIntervalVisibility();
@@ -433,17 +356,6 @@ do1Tab?.addEventListener("click", () => {
 
     if (isChartVisible) {
         loadChart(API_URLS.do1, "do1");
-    }
-});
-
-do2Tab?.addEventListener("click", () => {
-    currentSensorType = "do2";
-    updateChartIntervalVisibility();
-    setActiveTab(do2Tab);
-    loadTable(API_URLS.do2, "do2");
-
-    if (isChartVisible) {
-        loadChart(API_URLS.do2, "do2");
     }
 });
 
@@ -528,7 +440,7 @@ async function loadTable(apiUrl: string, sensorType: string) {
         showTable();
     } else {
         tableData = null;
-        container.textContent = "データの取得に失敗しました。2~5分ほど待ってからもう一度お試しください。";
+        container.textContent = "データを読み込めませんでした。";
     }
 }
 
